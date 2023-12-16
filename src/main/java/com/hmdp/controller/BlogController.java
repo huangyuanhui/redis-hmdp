@@ -3,7 +3,6 @@ package com.hmdp.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.hmdp.dto.Result;
-import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.Blog;
 import com.hmdp.entity.User;
 import com.hmdp.service.IBlogService;
@@ -35,7 +34,7 @@ public class BlogController {
     @PostMapping
     public Result saveBlog(@RequestBody Blog blog) {
         // 获取登录用户
-        UserDTO user = UserHolder.getUser();
+        User user = UserHolder.getUser();
         blog.setUserId(user.getId());
         // 保存探店博文
         blogService.save(blog);
@@ -54,7 +53,7 @@ public class BlogController {
     @GetMapping("/of/me")
     public Result queryMyBlog(@RequestParam(value = "current", defaultValue = "1") Integer current) {
         // 获取登录用户
-        UserDTO user = UserHolder.getUser();
+        User user = UserHolder.getUser();
         // 根据用户查询
         Page<Blog> page = blogService.query()
                 .eq("user_id", user.getId()).page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
@@ -72,7 +71,7 @@ public class BlogController {
         // 获取当前页数据
         List<Blog> records = page.getRecords();
         // 查询用户
-        records.forEach(blog ->{
+        records.forEach(blog -> {
             Long userId = blog.getUserId();
             User user = userService.getById(userId);
             blog.setName(user.getNickName());
