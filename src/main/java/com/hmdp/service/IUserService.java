@@ -39,4 +39,11 @@ public interface IUserService extends IService<User> {
      * @return
      */
     Result sendCode(String phone);
+
+    /**
+     * Redis方式：基于验证码登录或注册
+     * @param loginForm
+     * @return
+     */
+    Result login(LoginFormDTO loginForm);
 }

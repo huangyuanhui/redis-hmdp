@@ -14,11 +14,10 @@ import com.hmdp.utils.RegexUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpSession;
-
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static com.hmdp.utils.SystemConstants.*;
@@ -100,6 +99,37 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         // 发送验证码
         log.error("调用短信服务发送短信验证码，验证码：{}", code);
         return null;
+    }
+
+    @Override
+    public Result login(LoginFormDTO loginForm) {
+        // 校验手机号
+        String phone = loginForm.getPhone();
+        if (RegexUtils.isPhoneInvalid(phone)) {
+            return Result.fail("手机格式错误！");
+        }
+        // 校验验证码
+        String cacheCode = redisTemplate.opsForValue().get(LOGIN_CODE_KEY + phone);
+        if (cacheCode == null || !cacheCode.equals(loginForm.getCode())) {
+            return Result.fail("验证码错误！");
+        }
+        // 根据手机查询用户
+        User user = query().eq("phone", phone).one();
+        // 校验用户是否存在
+        if (user == null) {
+            // 用户不存在则注册，创建用户并保存到数据库
+            user = createUserByPhone(phone);
+        }
+        // 生产随token
+        String token = UUID.randomUUID().toString(true);
+        String key = LOGIN_TOKEN_KEY + token;
+        UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
+        Map<String, Object> userMap = BeanUtil.beanToMap(userDTO);
+        // 保存用户到Redis，并设置用户的登录有效期：模仿session的有效期30分钟
+        redisTemplate.opsForHash().putAll(key, userMap);
+        redisTemplate.expire(key, LOGIN_TOKEN_TTL, TimeUnit.MINUTES);
+        // 返回token
+        return Result.ok(token);
     }
 
     /**
