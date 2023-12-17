@@ -1,5 +1,6 @@
 package com.hmdp.service.impl;
 
+import cn.hutool.core.util.BooleanUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.hmdp.dto.Result;
@@ -60,6 +61,26 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(shop), CACHE_SHOP_TTL, TimeUnit.MINUTES);
         // 返回商铺信息
         return Result.ok(shop);
+    }
+
+    /**
+     * 尝试获取分布式锁
+     *
+     * @return
+     */
+    private Boolean tryLock(String key) {
+        // 过期时间一般比你业务执行时间长一点，这里是缓存重建业务时间
+        Boolean flag = stringRedisTemplate.opsForValue()
+                .setIfAbsent(key, "1", LOCK_SHOP_TTL, TimeUnit.SECONDS);
+        return BooleanUtil.isTrue(flag);
+    }
+
+    /**
+     * 释放分布式锁
+     * @param key
+     */
+    private void unlock(String key) {
+        stringRedisTemplate.delete(key);
     }
 
     @Override
