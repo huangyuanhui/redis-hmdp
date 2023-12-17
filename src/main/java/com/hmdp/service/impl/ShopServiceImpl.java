@@ -34,19 +34,33 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
     @Override
     public Result queryById(Long id) {
+        // 缓存穿透
+        Shop shop = queryWithPassThrough(id);
+        if (shop == null) {
+            return Result.fail("商铺不存在");
+        }
+        return Result.ok(shop);
+    }
+
+    /**
+     * 缓存穿透代码
+     *
+     * @param id
+     * @return
+     */
+    private Shop queryWithPassThrough(Long id) {
         // 从Redis查询商铺缓存
         String key = CACHE_SHOP_KEY + id;
         String shopJson = stringRedisTemplate.opsForValue().get(key);
         // 判断商铺是否存在
         if (StrUtil.isNotBlank(shopJson)) {
             // 存在
-            Shop shop = JSONUtil.toBean(shopJson, Shop.class);
-            return Result.ok(shop);
+            return JSONUtil.toBean(shopJson, Shop.class);
         }
         // 判断是否命中空值
         if (shopJson != null) {
             // 命中空值, 返回错误信息
-            return Result.fail("商铺不存在！");
+            return null;
         }
         // 不存在，根据id从数据库获取
         Shop shop = getById(id);
@@ -55,12 +69,12 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
             // 不存在，缓存空对象
             stringRedisTemplate.opsForValue().set(key, "", CACHE_NULL_TTL, TimeUnit.MINUTES);
             // 返回错误信息
-            return Result.fail("商铺不存在！");
+            return null;
         }
         // 存在，缓存商铺信息到Redis，添加超时剔除
         stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(shop), CACHE_SHOP_TTL, TimeUnit.MINUTES);
         // 返回商铺信息
-        return Result.ok(shop);
+        return shop;
     }
 
     /**
@@ -77,6 +91,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
     /**
      * 释放分布式锁
+     *
      * @param key
      */
     private void unlock(String key) {
