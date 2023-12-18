@@ -50,8 +50,19 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if (seckillVoucher.getStock() < 1) {
             return Result.fail("秒杀卷库存不足！");
         }
-        // 创建订单
-        return createVoucherOrder(voucherId);
+
+        /**
+         * 如果锁加在在createVoucherOrder方法内部，事务加在方法上，那么方法执行顺序是先释放锁，再去提
+         * 交事务（@Transaction是被Spring管理的，事务的提交是在方法执行完之后，由Spring去做事务提交），
+         * 那么存在就会发生这种情况的可能：线程一锁释放了，事务还未提交，线程二这个时候进来了，线程一新增的
+         * 订单很有可能还未写入数据库，那么先线程二查询订单时依然不存在，那么仍然存在一个用户下多单的情况，
+         * 依然存在并发安全问题！即当前锁的范围有点小，应该把整个函数锁起来，即应该在事务提交之后，再去释放锁！
+         */
+        Long userId = UserHolder.getUser().getId();
+        synchronized (userId) {
+            // 创建订单
+            return createVoucherOrder(voucherId);
+        }
     }
 
     /**
@@ -65,44 +76,32 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
      */
     @Transactional
     public Result createVoucherOrder(Long voucherId) {
-        /**
-         * 悲观锁不建议加在方法上，加在方法上意味着所有线程都是同一把锁：this，那么这个创建订单方法就变成
-         * 串行执行了，性能就变得很差了，所谓的一人一单，是指同一个用户来了我们才去判断并发安全问题，如果不是
-         * 同一个用户，就不需要去加锁。因此，可以得出两个结论：一是悲观锁不应该加在方法上，二是锁的范围因该限定
-         * 为同一用户！
-         * 因此：锁应该是当前用户，我们可以把用户ID作为锁，把锁的范围缩小，也就是说同一个用户加同一把锁，
-         * 不同用户加不同的锁。
-         */
+
         // 一人一单：查询订单，判断该用户是否已经抢购过该秒杀特价券
         Long userId = UserHolder.getUser().getId();
-        /**
-         * 使用Long.toString()不能保证Long类型的同数值转成的字符串是一致的，不能保证一致，那么这个锁就不是同一把锁。
-         * 为了保证Long类型的同数值转成的字符串是一致的，使用要使用String.intern()方法，作用是返回字符串对象的规范表示。
-         */
-        synchronized (userId.toString().intern()) {
-            int count = query().eq("user_id", userId).eq("voucher_id", voucherId).count();
-            if (count > 0) {
-                // 用户下过单则不能再下单
-                return Result.fail("用户已经购买过一次！");
-            }
-            // 扣减库存：update table set stock = stock -1 where voucher_id = 2 and stock > 0;
-            boolean isSuccess = seckillVoucherService.update()
-                    .setSql("stock = stock -1")
-                    .eq("voucher_id", voucherId)
-                    .gt("stock", 0)
-                    .update();
-            if (!isSuccess) {
-                return Result.fail("扣减库存失败！");
-            }
-            // 创建订单存入数据库
-            VoucherOrder voucherOrder = new VoucherOrder();
-            long orderId = redisIdWorker.nextId(VOUCHER_ORDER_KEY);
-            voucherOrder.setId(orderId);
-            voucherOrder.setUserId(userId);
-            voucherOrder.setVoucherId(voucherId);
-            save(voucherOrder);
-            // 返回订单ID
-            return Result.ok(orderId);
+
+        int count = query().eq("user_id", userId).eq("voucher_id", voucherId).count();
+        if (count > 0) {
+            // 用户下过单则不能再下单
+            return Result.fail("用户已经购买过一次！");
         }
+        // 扣减库存：update table set stock = stock -1 where voucher_id = 2 and stock > 0;
+        boolean isSuccess = seckillVoucherService.update()
+                .setSql("stock = stock -1")
+                .eq("voucher_id", voucherId)
+                .gt("stock", 0)
+                .update();
+        if (!isSuccess) {
+            return Result.fail("扣减库存失败！");
+        }
+        // 创建订单存入数据库
+        VoucherOrder voucherOrder = new VoucherOrder();
+        long orderId = redisIdWorker.nextId(VOUCHER_ORDER_KEY);
+        voucherOrder.setId(orderId);
+        voucherOrder.setUserId(userId);
+        voucherOrder.setVoucherId(voucherId);
+        save(voucherOrder);
+        // 返回订单ID
+        return Result.ok(orderId);
     }
 }
