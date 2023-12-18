@@ -51,6 +51,13 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if (seckillVoucher.getStock() < 1) {
             return Result.fail("秒杀卷库存不足！");
         }
+        // 一人一单：查询订单，判断该用户是否已经抢购过该秒杀特价券
+        Long userId = UserHolder.getUser().getId();
+        int count = query().eq("user_id", userId).eq("voucher_id", voucherId).count();
+        if (count > 0) {
+            // 用户下过单则不能再下单
+            return Result.fail("用户已经购买过一次！");
+        }
         // 扣减库存：update table set stock = stock -1 where voucher_id = 2 and stock > 0;
         boolean isSuccess = seckillVoucherService.update()
                 .setSql("stock = stock -1")
@@ -64,7 +71,6 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         VoucherOrder voucherOrder = new VoucherOrder();
         long orderId = redisIdWorker.nextId(VOUCHER_ORDER_KEY);
         voucherOrder.setId(orderId);
-        Long userId = UserHolder.getUser().getId();
         voucherOrder.setUserId(userId);
         voucherOrder.setVoucherId(voucherId);
         save(voucherOrder);
