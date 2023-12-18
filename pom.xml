@@ -56,6 +56,12 @@
             <version>5.7.17</version>
         </dependency>
 
+        <!-- 获取代理对象需要用到的依赖 -->
+        <dependency>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjweaver</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
