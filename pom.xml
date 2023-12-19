@@ -31,6 +31,13 @@
             <artifactId>commons-pool2</artifactId>
         </dependency>
 
+        <!-- redission框架 -->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson</artifactId>
+            <version>3.17.6</version>
+        </dependency>
+
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
