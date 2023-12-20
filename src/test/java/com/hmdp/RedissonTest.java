@@ -49,6 +49,7 @@ public class RedissonTest {
          * 重试获取锁时，通过订阅锁释放的通知和信号量，避免了无效的重试与CPU的占用
          *
          *
+         *
          */
         boolean isLock = lock.tryLock(1L, TimeUnit.SECONDS);
         if (!isLock) {
