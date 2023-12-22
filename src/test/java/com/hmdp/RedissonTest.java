@@ -5,32 +5,41 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import javax.annotation.Resource;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @SpringBootTest
 public class RedissonTest {
 
-    @Autowired
-    private RedissonClient redissonClient;
+    @Resource
+    private RedissonClient redissonClient1;
+    @Resource
+    private RedissonClient redissonClient2;
+    @Resource
+    private RedissonClient redissonClient3;
 
     private RLock lock;
 
     @BeforeEach
     void setUp() {
-        lock = redissonClient.getLock("order");
+        // 获取三个独立的锁
+        RLock lock1 = redissonClient1.getLock("order");
+        RLock lock2 = redissonClient2.getLock("order");
+        RLock lock3 = redissonClient3.getLock("order");
+        // 创建联锁
+        lock = redissonClient1.getMultiLock(lock1, lock2, lock3);
     }
 
     /**
-     *                     获取锁成功。。。。1
-     *                     获取锁成功。。。。2
-     *                     开始执行业务。。。。2
-     *                     准备释放锁。。。。2
-     *                     继续执行业务。。。。1
-     *                     准备释放锁。。。。1
+     * 获取锁成功。。。。1
+     * 获取锁成功。。。。2
+     * 开始执行业务。。。。2
+     * 准备释放锁。。。。2
+     * 继续执行业务。。。。1
+     * 准备释放锁。。。。1
      */
 
     @Test
@@ -70,9 +79,9 @@ public class RedissonTest {
             log.info("获取锁成功。。。。1");
             method2();
             log.info("继续执行业务。。。。1");
-        }finally {
+        } finally {
             log.warn("准备释放锁。。。。1");
-            lock.unlock();
+            //lock.unlock();
         }
     }
 
@@ -87,9 +96,9 @@ public class RedissonTest {
         try {
             log.info("获取锁成功。。。。2");
             log.info("开始执行业务。。。。2");
-        }finally {
+        } finally {
             log.warn("准备释放锁。。。。2");
-            lock.unlock();
+            //lock.unlock();
         }
     }
 }
